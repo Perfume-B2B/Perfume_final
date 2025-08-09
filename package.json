@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma generate && npx prisma db push && npx prisma db seed && next build --no-lint",
+    "build": "npx prisma generate && next build --no-lint",
     "postinstall": "npx prisma generate",
     "start": "next start",
     "lint": "next lint",
@@ -19,6 +19,8 @@
     "test:e2e:headed": "playwright test --headed",
     "format": "prettier --write .",
     "db:seed": "npx prisma db seed",
+    "db:push": "npx prisma db push",
+    "db:setup": "npx prisma generate && npx prisma db push && npx prisma db seed",
     "db:setup": "tsx scripts/setup-database.ts",
     "cleanup:products": "ts-node scripts/cleanup.ts",
     "cleanup:products:direct": "ts-node scripts/cleanup-direct.ts",
