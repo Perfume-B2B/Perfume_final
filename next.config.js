@@ -16,11 +16,11 @@ const nextConfig = {
   compress: true,
   // Configure image domains for Supabase storage
   images: {
-    domains: ['mopmajhpeeahpqumpqax.supabase.co'],
+    domains: ['gosxpyyqspopthbsfdnv.supabase.co'],
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'mopmajhpeeahpqumpqax.supabase.co',
+        hostname: 'gosxpyyqspopthbsfdnv.supabase.co',
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
