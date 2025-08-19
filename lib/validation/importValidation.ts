@@ -66,11 +66,14 @@ export function validateImportData(
 
   // Create a map of duplicate rows for quick lookup
   const duplicateRowMap = new Map<number, boolean>();
-  duplicates.forEach((dup) => {
-    duplicateRowMap.set(dup.row, true);
-  });
+  if (duplicates && Array.isArray(duplicates)) {
+    duplicates.forEach((dup) => {
+      duplicateRowMap.set(dup.row, true);
+    });
+  }
 
-  data.forEach((row, index) => {
+  if (data && Array.isArray(data)) {
+    data.forEach((row, index) => {
     const rowNumber = index + 1;
     const mappedData: Record<string, unknown> = {};
     const errors: string[] = [];
@@ -138,9 +141,13 @@ export function validateImportData(
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
-        (error as z.ZodError).errors.forEach((err: any) => {
-          errors.push(err.message);
-        });
+        if (error.errors && Array.isArray(error.errors)) {
+          error.errors.forEach((err: any) => {
+            if (err && err.message) {
+              errors.push(err.message);
+            }
+          });
+        }
       } else {
         errors.push("Onbekende validatiefout");
       }
@@ -172,12 +179,13 @@ export function validateImportData(
       isDuplicate,
     });
   });
+  }
 
   const canImport = validRows > 0 || (warningRows > 0 && errorRows === 0);
 
   return {
     rows: validationRows,
-    totalRows: data.length,
+    totalRows: data ? data.length : 0,
     validRows,
     errorRows,
     warningRows,

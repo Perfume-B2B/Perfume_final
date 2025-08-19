@@ -113,13 +113,13 @@ export interface ColumnMapping {
 }
 
 export interface ColumnMapperProps {
-  headers: string[];
+  headers?: string[];
   onMappingChange: (mapping: ColumnMapping) => void;
   initialMapping?: ColumnMapping;
 }
 
 export default function ColumnMapper({
-  headers,
+  headers = [],
   onMappingChange,
   initialMapping,
 }: ColumnMapperProps) {
@@ -185,11 +185,13 @@ export default function ColumnMapper({
 
   // Get field usage count for duplicate detection
   const fieldUsageCount: Record<ProductField, number> = {} as Record<ProductField, number>;
-  Object.values(mapping).forEach((field) => {
-    if (field) {
-      fieldUsageCount[field] = (fieldUsageCount[field] || 0) + 1;
-    }
-  });
+  if (mapping && typeof mapping === 'object') {
+    Object.values(mapping).forEach((field) => {
+      if (field) {
+        fieldUsageCount[field] = (fieldUsageCount[field] || 0) + 1;
+      }
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -259,7 +261,7 @@ export default function ColumnMapper({
           <h4 className="text-sm font-medium text-gray-900">Kolom Mapping</h4>
         </div>
         <div className="divide-y divide-gray-200">
-          {headers.map((header) => {
+          {headers && headers.length > 0 ? headers.map((header) => {
             const isAutoMapped = autoMapped.has(header);
             const selectedField = mapping[header];
             const usageCount = selectedField ? fieldUsageCount[selectedField] : 0;
@@ -335,7 +337,11 @@ export default function ColumnMapper({
                 )}
               </div>
             );
-          })}
+          }) : (
+            <div className="px-6 py-8 text-center text-gray-500">
+              <p>Geen kolommen beschikbaar. Upload eerst een bestand.</p>
+            </div>
+          )}
         </div>
       </div>
 

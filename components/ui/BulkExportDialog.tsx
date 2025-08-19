@@ -132,19 +132,23 @@ export default function BulkExportDialog({ isOpen, onClose }: BulkExportDialogPr
         setErrors(data.errors || []);
 
         // Download files
-        data.results?.forEach((result: Record<string, unknown>) => {
-          const blob = new Blob([Buffer.from(String(result.fileBuffer), "base64")], {
-            type: String(result.contentType),
+        if (data.results && Array.isArray(data.results)) {
+          data.results.forEach((result: Record<string, unknown>) => {
+            if (result && typeof result === 'object') {
+              const blob = new Blob([Buffer.from(String(result.fileBuffer), "base64")], {
+                type: String(result.contentType),
+              });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = String(result.filename);
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+            }
           });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = String(result.filename);
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-        });
+        }
 
         if (data.errors?.length > 0) {
           alert(

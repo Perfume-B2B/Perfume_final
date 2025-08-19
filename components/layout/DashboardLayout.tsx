@@ -19,6 +19,7 @@ import {
   Bell,
   Gift,
   CreditCard,
+  Globe,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -36,6 +37,7 @@ const navigation = [
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Customers", href: "/admin/customers", icon: Users },
   { name: "Promotions", href: "/admin/promotions", icon: Gift },
+  { name: "Scraping", href: "/admin/scraping", icon: Globe },
   { name: "Reports", href: "/admin/reports", icon: BarChart3 },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
@@ -192,6 +194,7 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
                           'customers': 'Customers',
                           'users': 'Users',
                           'promotions': 'Promotions',
+                          'scraping': 'Scraping',
                           'reports': 'Reports',
                           'settings': 'Settings',
                           'pos': 'Point of Sale',

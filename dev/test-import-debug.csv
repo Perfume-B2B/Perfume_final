@@ -1,0 +1,4 @@
+name,brand,content,ean,purchasePrice,retailPrice,stockQuantity
+"Test Product A","Test Brand","100ml","1111111111111","20.00","40.00","50"
+"Test Product B","Test Brand","50ml","2222222222222","15.00","30.00","75"
+"Test Product C","Test Brand","75ml","3333333333333","25.00","50.00","100"

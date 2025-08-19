@@ -99,6 +99,21 @@ async function processProductRow(
         : [],
     };
 
+    // Validate EAN before database query
+    if (!productData.ean || typeof productData.ean !== 'string' || productData.ean.trim() === '') {
+      console.log(`⚠️ Row ${rowIndex + 1}: Invalid EAN value:`, { ean: productData.ean, type: typeof productData.ean });
+      return {
+        success: false,
+        error: {
+          row: rowIndex + 1,
+          field: "ean",
+          message: "EAN is required and cannot be empty",
+          data: productData,
+        },
+      };
+    }
+
+    console.log(`🔍 Row ${rowIndex + 1}: Checking EAN uniqueness for: ${productData.ean}`);
     // Check if product already exists
     const existingProduct = await prisma.product.findUnique({
       where: { ean: productData.ean },
@@ -117,9 +132,33 @@ async function processProductRow(
     }
 
     // Create the product
-    await prisma.product.create({
-      data: productData,
-    });
+    try {
+      await prisma.product.create({
+        data: productData,
+      });
+    } catch (createError) {
+      console.error(`Error creating product for row ${rowIndex + 1}:`, createError);
+      console.error(`Product data:`, productData);
+      
+      let errorMessage = "Failed to create product";
+      if (createError instanceof Error) {
+        if (createError.message.includes('Invalid `prisma.product.create()`')) {
+          errorMessage = `Database validation error: ${createError.message}`;
+        } else {
+          errorMessage = createError.message;
+        }
+      }
+      
+      return {
+        success: false,
+        error: {
+          row: rowIndex + 1,
+          field: "database",
+          message: errorMessage,
+          data: productData,
+        },
+      };
+    }
 
     return { success: true };
   } catch (error) {
@@ -167,30 +206,32 @@ async function processBatch(
   const errors: ImportError[] = [];
   const warnings: ImportWarning[] = [];
 
-  results.forEach((result, index) => {
-    if (result.status === "fulfilled" && result.value) {
-      if (result.value.success) {
-        successful++;
-      } else {
+  if (results && Array.isArray(results)) {
+    results.forEach((result, index) => {
+      if (result && result.status === "fulfilled" && result.value) {
+        if (result.value.success) {
+          successful++;
+        } else {
+          failed++;
+          if (result.value.error) {
+            errors.push(result.value.error);
+          }
+          if (result.value.warning) {
+            warnings.push(result.value.warning);
+          }
+        }
+      } else if (result && result.status === "rejected") {
         failed++;
-        if (result.value.error) {
-          errors.push(result.value.error);
-        }
-        if (result.value.warning) {
-          warnings.push(result.value.warning);
-        }
+        const batchItem = index < batch.length ? batch[index] : {};
+        errors.push({
+          row: startIndex + index + 1,
+          field: "unknown",
+          message: result.reason?.message || "Onbekende fout",
+          data: batchItem || {},
+        });
       }
-    } else if (result.status === "rejected") {
-      failed++;
-      const batchItem = index < batch.length ? batch[index] : {};
-      errors.push({
-        row: startIndex + index + 1,
-        field: "unknown",
-        message: result.reason?.message || "Onbekende fout",
-        data: batchItem || {},
-      });
-    }
-  });
+    });
+  }
 
   return { successful, failed, errors, warnings };
 }
@@ -205,6 +246,23 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { data, columnMapping } = importRequestSchema.parse(body);
+
+    // Log column mapping and data structure for debugging
+    console.log("🔧 Column mapping received:", columnMapping);
+    if (data.length > 0) {
+      const availableColumns = Object.keys(data[0]);
+      console.log("📋 Available columns in data:", availableColumns);
+      console.log("🔍 Looking for required columns: name, brand, content, ean, purchasePrice, retailPrice, stockQuantity");
+      
+      // Check which required columns are missing
+      const requiredColumns = ["name", "brand", "content", "ean", "purchasePrice", "retailPrice", "stockQuantity"];
+      const missingColumns = requiredColumns.filter(col => !availableColumns.includes(col));
+      if (missingColumns.length > 0) {
+        console.log("❌ Missing required columns:", missingColumns);
+      } else {
+        console.log("✅ All required columns found");
+      }
+    }
 
     const startTime = Date.now();
     const batchSize = 50;

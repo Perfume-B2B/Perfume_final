@@ -26,8 +26,10 @@ import {
   MoreVertical,
   Eye,
   Lock,
-  Unlock
+  Unlock,
+  Receipt
 } from "lucide-react";
+import Modal from "@/components/ui/Modal";
 
 interface Integration {
   id: string;
@@ -77,6 +79,53 @@ export default function SettingsClient() {
   const [userStatusFilter, setUserStatusFilter] = useState("all");
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  // POS receipt template editor state
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptHeader, setReceiptHeader] = useState("Project X Store\n123 Example St\nCity, NL");
+  const [receiptFooter, setReceiptFooter] = useState("Thank you for your purchase!\nwww.example.com");
+  const [receiptNotes, setReceiptNotes] = useState("");
+  const [autoPrint, setAutoPrint] = useState(true);
+  const [includeDescriptions, setIncludeDescriptions] = useState(true);
+  const [includeQr, setIncludeQr] = useState(false);
+  const loadReceiptSettings = async () => {
+    try {
+      const res = await fetch('/api/admin/settings/pos/receipt');
+      if (res.ok) {
+        const s = await res.json();
+        setReceiptHeader(s.header ?? receiptHeader);
+        setReceiptFooter(s.footer ?? receiptFooter);
+        setReceiptNotes(s.notes ?? "");
+        setAutoPrint(Boolean(s.autoPrint));
+        setIncludeDescriptions(Boolean(s.includeDescriptions));
+        setIncludeQr(Boolean(s.includeQr));
+      }
+    } catch (e) {
+      console.error('Failed to load POS receipt settings', e);
+    }
+  };
+  const saveReceiptSettings = async () => {
+    try {
+      const res = await fetch('/api/admin/settings/pos/receipt', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          header: receiptHeader,
+          footer: receiptFooter,
+          notes: receiptNotes,
+          autoPrint,
+          includeDescriptions,
+          includeQr,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || 'Failed to save');
+      }
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  };
+  useEffect(() => { loadReceiptSettings(); }, []);
 
   useEffect(() => {
     fetchIntegrations();
@@ -662,76 +711,178 @@ export default function SettingsClient() {
                   </div>
                 </div>
 
-                {/* Payment Settings */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900">Payment Settings</h3>
-                  <div className="space-y-3">
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-3" />
-                      <span className="text-sm text-gray-700">Enable cash payments</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-3" />
-                      <span className="text-sm text-gray-700">Enable card payments</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" className="mr-3" />
-                      <span className="text-sm text-gray-700">Enable digital wallet payments</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-3" />
-                      <span className="text-sm text-gray-700">Require customer information for sales</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Receipt Settings */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900">Receipt Settings</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Receipt Header
+                {/* POS Receipt Settings */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Receipt className="w-5 h-5" />
+                      POS Receipt Settings
+                    </CardTitle>
+                    <CardDescription>
+                      Customize the appearance and content of POS receipts
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-gray-700">
+                          Store Header
+                        </label>
+                        <textarea
+                          value={receiptHeader}
+                          onChange={(e) => setReceiptHeader(e.target.value)}
+                          placeholder="Enter store name and address..."
+                          className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          rows={3}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Use \n for line breaks. Example: Store Name\nAddress\nCity, Country
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-gray-700">
+                          Store Footer
+                        </label>
+                        <textarea
+                          value={receiptFooter}
+                          onChange={(e) => setReceiptFooter(e.target.value)}
+                          placeholder="Enter thank you message and website..."
+                          className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          rows={3}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Use \n for line breaks. Example: Thank you!\nVisit our website
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-gray-700">
+                        Additional Notes
                       </label>
                       <textarea
-                        rows={3}
-                        defaultValue="Project X Store"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                        value={receiptNotes}
+                        onChange={(e) => setReceiptNotes(e.target.value)}
+                        placeholder="Enter any additional notes to display on receipts..."
+                        className="w-full h-16 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        rows={2}
                       />
+                      <p className="text-xs text-gray-500">
+                        Optional notes that will appear on all receipts (e.g., return policy, contact info)
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Receipt Footer
+                    
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-gray-700">
+                        Receipt Features
                       </label>
-                      <textarea
-                        rows={3}
-                        defaultValue="Thank you for your purchase!"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                      />
+                      <div className="space-y-3">
+                        <label className="flex items-center">
+                          <input 
+                            type="checkbox" 
+                            className="mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                            checked={autoPrint} 
+                            onChange={(e) => setAutoPrint(e.target.checked)} 
+                          />
+                          <span className="text-sm text-gray-700">Print receipts automatically after sale</span>
+                        </label>
+                        <label className="flex items-center">
+                          <input 
+                            type="checkbox" 
+                            className="mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                            checked={includeDescriptions} 
+                            onChange={(e) => setIncludeDescriptions(e.target.checked)} 
+                          />
+                          <span className="text-sm text-gray-700">Include product descriptions on receipts</span>
+                        </label>
+                        <label className="flex items-center">
+                          <input 
+                            type="checkbox" 
+                            className="mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                            checked={includeQr} 
+                            onChange={(e) => setIncludeQr(e.target.checked)} 
+                          />
+                          <span className="text-sm text-gray-700">Include QR code for digital receipts</span>
+                        </label>
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-3" />
-                      <span className="text-sm text-gray-700">Print receipts automatically</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" defaultChecked className="mr-3" />
-                      <span className="text-sm text-gray-700">Include product descriptions on receipts</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" className="mr-3" />
-                      <span className="text-sm text-gray-700">Include QR code on receipts</span>
-                    </label>
-                  </div>
-                </div>
+                    
+                    <div className="pt-4 border-t border-gray-200">
+                      <Button onClick={saveReceiptSettings} className="w-full">
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Receipt Settings
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                <Button>
+                <Button onClick={saveReceiptSettings}>
                   <Save className="w-4 h-4 mr-2" />
                   Save POS Settings
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Receipt Template Editor Modal */}
+            <Modal
+              open={receiptModalOpen}
+              onOpenChange={setReceiptModalOpen}
+              title="Edit Receipt Template"
+              description="Customize the printed receipt header, footer and extra notes."
+              className="max-w-2xl"
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Header</label>
+                    <textarea
+                      rows={6}
+                      value={receiptHeader}
+                      onChange={(e) => setReceiptHeader(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Footer</label>
+                    <textarea
+                      rows={6}
+                      value={receiptFooter}
+                      onChange={(e) => setReceiptFooter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
+                  <textarea
+                    rows={4}
+                    value={receiptNotes}
+                    onChange={(e) => setReceiptNotes(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  />
+                </div>
+                <div className="border rounded-md p-3">
+                  <div className="text-sm font-medium text-gray-900 mb-2">Print Preview</div>
+                  <div className="bg-white border text-sm p-3" style={{ width: "80mm" }}>
+                    <div className="text-center whitespace-pre-wrap">{receiptHeader}</div>
+                    <hr className="my-2" />
+                    <div className="text-center text-gray-700">Items will appear here at runtime</div>
+                    <hr className="my-2" />
+                    <div className="text-center whitespace-pre-wrap">{receiptFooter}</div>
+                    {receiptNotes && (
+                      <div className="text-center mt-2 whitespace-pre-wrap">{receiptNotes}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setReceiptModalOpen(false)}>Close</Button>
+                  <Button onClick={async () => { await saveReceiptSettings(); setReceiptModalOpen(false); }}>
+                    <Save className="w-4 h-4 mr-2" /> Save Template
+                  </Button>
+                </div>
+              </div>
+            </Modal>
           </div>
         )}
 

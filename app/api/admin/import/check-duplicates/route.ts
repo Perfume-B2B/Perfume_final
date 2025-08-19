@@ -50,17 +50,22 @@ export async function POST(request: NextRequest) {
 
           const existingEANs = new Set(existingProducts.map((p) => p.ean));
 
-          eanCodes.forEach(({ ean, index }) => {
-            if (existingEANs.has(ean)) {
-              const existingProduct = existingProducts.find((p) => p.ean === ean);
-              duplicates.push({
-                row: index + 1,
-                field: "ean",
-                message: `Product met EAN ${ean} bestaat al`,
-                data: { ean, existingProduct },
-              });
-            }
-          });
+          if (eanCodes && Array.isArray(eanCodes)) {
+            eanCodes.forEach((item) => {
+              if (item && typeof item === 'object' && item.ean && typeof item.index === 'number') {
+                const { ean, index } = item;
+                if (existingEANs.has(ean)) {
+                  const existingProduct = existingProducts.find((p) => p.ean === ean);
+                  duplicates.push({
+                    row: index + 1,
+                    field: "ean",
+                    message: `Product met EAN ${ean} bestaat al`,
+                    data: { ean, existingProduct },
+                  });
+                }
+              }
+            });
+          }
         }
       }
     }
@@ -99,20 +104,25 @@ export async function POST(request: NextRequest) {
 
           const existingPairs = new Set(existingProducts.map((p) => `${p.name}|${p.brand}`));
 
-          nameBrandPairs.forEach(({ name, brand, index }) => {
-            const pair = `${name}|${brand}`;
-            if (existingPairs.has(pair)) {
-              const existingProduct = existingProducts.find(
-                (p) => p.name === name && p.brand === brand,
-              );
-              duplicates.push({
-                row: index + 1,
-                field: "name",
-                message: `Product met naam "${name}" en merk "${brand}" bestaat al`,
-                data: { name, brand, existingProduct },
-              });
-            }
-          });
+          if (nameBrandPairs && Array.isArray(nameBrandPairs)) {
+            nameBrandPairs.forEach((item) => {
+              if (item && typeof item === 'object' && item.name && item.brand && typeof item.index === 'number') {
+                const { name, brand, index } = item;
+                const pair = `${name}|${brand}`;
+                if (existingPairs.has(pair)) {
+                  const existingProduct = existingProducts.find(
+                    (p) => p.name === name && p.brand === brand,
+                  );
+                  duplicates.push({
+                    row: index + 1,
+                    field: "name",
+                    message: `Product met naam "${name}" en merk "${brand}" bestaat al`,
+                    data: { name, brand, existingProduct },
+                  });
+                }
+              }
+            });
+          }
         }
       }
     }

@@ -19,3 +19,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Form field defaults across the app: ensure readable text */
+select,
+input,
+textarea {
+  @apply text-gray-900 placeholder-gray-400;
+}
+
+/* Improve disabled/read-only contrast */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  @apply text-gray-700 bg-gray-100;
+}
+
+/* Better focus visibility */
+select:focus,
+input:focus,
+textarea:focus {
+  @apply ring-2 ring-blue-500 outline-none;
+}

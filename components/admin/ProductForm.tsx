@@ -147,9 +147,9 @@ export default function ProductForm({ csrfToken, session }: ProductFormProps) {
       if (error instanceof z.ZodError) {
         console.log("📋 Zod validation error:", error.issues);
         const fieldErrors: Record<string, string> = {};
-        if (error.issues && Array.isArray(error.issues)) {
+        if (error.issues && Array.isArray(error.issues) && error.issues.length > 0) {
           error.issues.forEach((err) => {
-            if (err.path[0]) {
+            if (err && err.path && err.path[0]) {
               fieldErrors[err.path[0] as string] = err.message;
             }
           });

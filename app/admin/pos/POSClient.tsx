@@ -72,6 +72,8 @@ export default function POSClient({ session }: POSClientProps) {
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE_PAYMENT" | "GIFT_CARD" | "OTHER">("CASH");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCustomerSelect, setShowCustomerSelect] = useState(false);
+  // Receipt settings loaded from server
+  const [receiptSettings, setReceiptSettings] = useState<{ header: string; footer: string; notes?: string; autoPrint: boolean; includeDescriptions: boolean; includeQr: boolean } | null>(null);
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -82,6 +84,17 @@ export default function POSClient({ session }: POSClientProps) {
     fetchProducts();
     fetchCustomers();
     startNewSession();
+    // load receipt settings
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/settings/pos/receipt');
+        if (res.ok) {
+          setReceiptSettings(await res.json());
+        }
+      } catch (e) {
+        console.error('Failed to load receipt settings', e);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -106,10 +119,11 @@ export default function POSClient({ session }: POSClientProps) {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      // Fetch a large page of active products for POS
+      const response = await fetch('/api/products?limit=2000&page=1');
       if (response.ok) {
         const data = await response.json();
-        setProducts(data.products);
+        setProducts(data.products || []);
       }
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -179,11 +193,303 @@ export default function POSClient({ session }: POSClientProps) {
     setCart(cart.filter(item => item.product.id !== productId));
   };
 
+  const buildReceiptHtml = (cartSnapshot: CartItem[], totals: { subtotal: number; tax: number; total: number }, meta: { sessionId?: string; operator?: string; customer?: string | null }) => {
+    const itemsRows = cartSnapshot.map(item => `
+      <tr>
+        <td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+          <div style="font-weight: 600; color: #1f2937;">${item.product.brand} ${item.product.name}</div>
+          <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${item.product.content || ''}</div>
+        </td>
+        <td style="padding: 8px 0; text-align: center; border-bottom: 1px solid #f0f0f0; color: #6b7280;">${item.quantity}×</td>
+        <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #f0f0f0; font-weight: 600; color: #1f2937;">€${item.unitPrice.toFixed(2)}</td>
+      </tr>
+    `).join("");
+
+    const header = (receiptSettings?.header ?? 'Project X Store\n123 Example St\nCity, NL');
+    const footer = (receiptSettings?.footer ?? 'Thank you for your purchase!\nwww.example.com');
+    const notes = (receiptSettings?.notes ?? '');
+    
+    // Generate current date and time
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('nl-NL', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const timeStr = now.toLocaleTimeString('nl-NL', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+
+    return `
+      <html>
+        <head>
+          <meta charSet="utf-8" />
+          <title>Receipt</title>
+          <style>
+            @page { 
+              size: 80mm auto; 
+              margin: 8mm; 
+            }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              color: #1f2937;
+              line-height: 1.4;
+            }
+            .receipt-container {
+              max-width: 64mm;
+              margin: 0 auto;
+              background: #ffffff;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+              border-radius: 8px;
+              overflow: hidden;
+            }
+            .header {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 16px 12px;
+              text-align: center;
+              font-weight: 700;
+              font-size: 14px;
+              line-height: 1.3;
+            }
+            .store-info {
+              background: #f8fafc;
+              padding: 12px;
+              text-align: center;
+              border-bottom: 1px solid #e2e8f0;
+              font-size: 11px;
+              color: #64748b;
+            }
+            .session-info {
+              background: #f1f5f9;
+              padding: 8px 12px;
+              font-size: 10px;
+              color: #475569;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .customer-info {
+              background: #f1f5f9;
+              padding: 8px 12px;
+              font-size: 10px;
+              color: #475569;
+              border-bottom: 1px solid #e2e8f0;
+              text-align: center;
+            }
+            .datetime {
+              background: #f8fafc;
+              padding: 8px 12px;
+              text-align: center;
+              font-size: 11px;
+              color: #64748b;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .items-section {
+              padding: 12px;
+            }
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 12px;
+            }
+            .items-table td {
+              padding: 8px 0;
+              vertical-align: top;
+            }
+            .item-name {
+              font-weight: 600;
+              color: #1f2937;
+              font-size: 12px;
+            }
+            .item-details {
+              font-size: 10px;
+              color: #6b7280;
+              margin-top: 2px;
+            }
+            .item-quantity {
+              text-align: center;
+              color: #6b7280;
+              font-size: 11px;
+              font-weight: 500;
+            }
+            .item-price {
+              text-align: right;
+              font-weight: 600;
+              color: #1f2937;
+              font-size: 12px;
+            }
+            .divider {
+              height: 1px;
+              background: linear-gradient(90deg, transparent 0%, #e2e8f0 50%, transparent 100%);
+              margin: 12px 0;
+            }
+            .totals-section {
+              padding: 0 12px 12px;
+            }
+            .totals-table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            .totals-table tr {
+              border-bottom: 1px solid #f1f5f9;
+            }
+            .totals-table td {
+              padding: 8px 0;
+              font-size: 12px;
+            }
+            .total-row {
+              font-weight: 700;
+              font-size: 14px;
+              color: #1f2937;
+              border-top: 2px solid #e2e8f0;
+              border-bottom: none !important;
+            }
+            .total-row td {
+              padding: 12px 0 8px;
+            }
+            .footer {
+              background: #f8fafc;
+              padding: 16px 12px;
+              text-align: center;
+              border-top: 1px solid #e2e8f0;
+              font-size: 11px;
+              color: #64748b;
+              line-height: 1.4;
+            }
+            .notes {
+              background: #fef3c7;
+              border: 1px solid #f59e0b;
+              border-radius: 4px;
+              padding: 8px 12px;
+              margin: 12px;
+              font-size: 10px;
+              color: #92400e;
+              text-align: center;
+            }
+            .qr-section {
+              text-align: center;
+              padding: 12px;
+              border-top: 1px solid #e2e8f0;
+            }
+            .qr-code {
+              width: 60px;
+              height: 60px;
+              background: #f3f4f6;
+              border: 1px solid #d1d5db;
+              border-radius: 4px;
+              margin: 0 auto;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 8px;
+              color: #6b7280;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-container">
+            <!-- Header -->
+            <div class="header">
+              ${header.replace(/\n/g, '<br/>')}
+            </div>
+            
+            <!-- Store Info -->
+            <div class="store-info">
+              Professional Perfume Solutions
+            </div>
+            
+            <!-- Session Info -->
+            <div class="session-info">
+              <strong>Session:</strong> ${meta.sessionId || '-'} | <strong>Operator:</strong> ${meta.operator || '-'}
+            </div>
+            
+            <!-- Customer Info (if available) -->
+            ${meta.customer ? `<div class="customer-info"><strong>Customer:</strong> ${meta.customer}</div>` : ''}
+            
+            <!-- Date & Time -->
+            <div class="datetime">
+              <strong>${dateStr}</strong><br/>
+              <strong>${timeStr}</strong>
+            </div>
+            
+            <!-- Items Section -->
+            <div class="items-section">
+              <table class="items-table">
+                <tbody>
+                  ${itemsRows}
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Divider -->
+            <div class="divider"></div>
+            
+            <!-- Totals Section -->
+            <div class="totals-section">
+              <table class="totals-table">
+                <tr>
+                  <td style="color: #64748b;">Subtotal</td>
+                  <td style="text-align: right; color: #64748b;">€${totals.subtotal.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b;">VAT (21%)</td>
+                  <td style="text-align: right; color: #64748b;">€${totals.tax.toFixed(2)}</td>
+                </tr>
+                <tr class="total-row">
+                  <td>TOTAL</td>
+                  <td style="text-align: right;">€${totals.total.toFixed(2)}</td>
+                </tr>
+              </table>
+            </div>
+            
+            <!-- Notes (if any) -->
+            ${notes ? `<div class="notes">${notes}</div>` : ''}
+            
+            <!-- QR Code Section -->
+            <div class="qr-section">
+              <div class="qr-code">
+                QR<br/>CODE
+              </div>
+              <div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">
+                Scan for digital receipt
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="footer">
+              ${footer.replace(/\n/g, '<br/>')}
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const triggerPrint = (cartSnapshot: CartItem[]) => {
+    const receipt = buildReceiptHtml(
+      cartSnapshot,
+      { subtotal, tax, total },
+      { sessionId: activeSession?.sessionId, operator: session.user?.username, customer: selectedCustomer?.name || null }
+    );
+    const printWindow = window.open("", "PRINT", "height=600,width=400");
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(receipt);
+      printWindow.document.close();
+    }
+  };
+
   const processTransaction = async () => {
     if (!activeSession || cart.length === 0) return;
 
     setIsProcessing(true);
     try {
+      // Snapshot cart for printing before clearing
+      const cartSnapshot = [...cart];
+
       const response = await fetch('/api/admin/pos/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -207,6 +513,11 @@ export default function POSClient({ session }: POSClientProps) {
       });
 
       if (response.ok) {
+        // Auto print receipt if enabled
+        if (!receiptSettings || receiptSettings.autoPrint) {
+          triggerPrint(cartSnapshot);
+        }
+
         // Clear cart and show success
         setCart([]);
         setSelectedCustomer(null);
