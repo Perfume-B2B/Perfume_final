@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/middleware-utils";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Parser } from "json2csv";
@@ -28,13 +27,17 @@ export interface ExportOptions {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     const body = await request.json();
     const { format, columns, filters, includePricing = false }: ExportOptions = body;
 
     // Build where clause based on filters
-    const where: Record<string, unknown> = {};
+    const where: any = {};
 
     if (filters.brand) {
       where.brand = { contains: filters.brand, mode: "insensitive" };
@@ -57,15 +60,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (filters.minRating || filters.maxRating) {
-      (where as Record<string, unknown>).starRating = {};
-      if (filters.minRating) (where as Record<string, unknown>).starRating.gte = filters.minRating;
-      if (filters.maxRating) (where as Record<string, unknown>).starRating.lte = filters.maxRating;
+      where.starRating = {};
+      if (filters.minRating) where.starRating.gte = filters.minRating;
+      if (filters.maxRating) where.starRating.lte = filters.maxRating;
     }
 
     if (filters.minPrice || filters.maxPrice) {
-      (where as Record<string, unknown>).retailPrice = {};
-      if (filters.minPrice) (where as Record<string, unknown>).retailPrice.gte = filters.minPrice;
-      if (filters.maxPrice) (where as Record<string, unknown>).retailPrice.lte = filters.maxPrice;
+      where.retailPrice = {};
+      if (filters.minPrice) where.retailPrice.gte = filters.minPrice;
+      if (filters.maxPrice) where.retailPrice.lte = filters.maxPrice;
     }
 
     if (filters.search) {
@@ -201,13 +204,12 @@ export async function POST(request: NextRequest) {
       worksheet["!cols"] = columnWidths;
 
       XLSX.utils.book_append_sheet(workbook, worksheet, "Producten");
-      fileBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      fileBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
       filename = `producten_export_${new Date().toISOString().split("T")[0]}.xlsx`;
       contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     }
 
     // Get current user for export history
-    const session = await auth();
     const userId = session?.user?.id;
 
     // Log export history
@@ -225,7 +227,7 @@ export async function POST(request: NextRequest) {
               columns,
               filters,
               includePricing,
-            } as unknown as Record<string, unknown>,
+            } as any,
             recordCount: products.length,
             status: "SUCCESS",
           },
@@ -255,7 +257,11 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     // Return available columns for export
     const availableColumns = [
