@@ -74,22 +74,38 @@ export abstract class PlaywrightBaseScraper {
           });
           console.log(`✅ Playwright browser launched for ${this.source.name} using fallback chromium`);
         } else {
+          console.log('🔍 @sparticuz/chromium is available, getting executable path...');
+          
           // Get the executable path from @sparticuz/chromium
           let executablePath;
           try {
+            console.log('📁 Getting @sparticuz/chromium executable path...');
             executablePath = await sparticuzChromium.executablePath({
               // Use a unique path to avoid conflicts
               cacheDir: `/tmp/chromium-playwright-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
             });
+            console.log('✅ Executable path obtained:', executablePath);
           } catch (pathError) {
+            console.warn('⚠️ Failed to get custom cache dir, using default:', pathError.message);
             // Fallback to default path
-            executablePath = await sparticuzChromium.executablePath();
+            try {
+              executablePath = await sparticuzChromium.executablePath();
+              console.log('✅ Fallback executable path obtained:', executablePath);
+            } catch (fallbackError) {
+              console.error('❌ Failed to get any executable path:', fallbackError.message);
+              throw new Error(`Failed to get @sparticuz/chromium executable path: ${fallbackError.message}`);
+            }
           }
           
           console.log('✅ Using @sparticuz/chromium executable for Playwright:', executablePath);
+          console.log('🔧 Preparing browser launch options...');
           
-          // Use Playwright with @sparticuz/chromium executable
-          this.browser = await chromium.launch({
+          // Debug @sparticuz/chromium args
+          console.log('🔍 @sparticuz/chromium args count:', sparticuzChromium.args?.length);
+          console.log('🔍 @sparticuz/chromium args preview:', sparticuzChromium.args?.slice(0, 5));
+          
+          // Prepare launch options
+          const launchOptions = {
             executablePath,
             headless: true,
             args: [
@@ -109,8 +125,26 @@ export abstract class PlaywrightBaseScraper {
               '--max_old_space_size=512'
             ],
             timeout: 15000 // Fast timeout for serverless
-          });
-          console.log(`✅ Playwright browser launched for ${this.source.name} using @sparticuz/chromium`);
+          };
+          
+          console.log('🔧 Launch options prepared, args count:', launchOptions.args?.length);
+          console.log('🚀 Launching browser with Playwright...');
+          
+          // Use Playwright with @sparticuz/chromium executable
+          try {
+            // Add timeout wrapper to prevent hanging
+            const launchPromise = chromium.launch(launchOptions);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Browser launch exceeded 20 seconds')), 20000)
+            );
+            
+            this.browser = await Promise.race([launchPromise, timeoutPromise]) as any;
+            console.log(`✅ Playwright browser launched for ${this.source.name} using @sparticuz/chromium`);
+          } catch (launchError) {
+            console.error('❌ Browser launch failed:', launchError.message);
+            console.error('❌ Launch error details:', launchError);
+            throw launchError;
+          }
         }
         
       } else {
