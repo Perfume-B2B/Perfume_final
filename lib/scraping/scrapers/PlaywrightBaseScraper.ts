@@ -1,6 +1,24 @@
 import { chromium, Browser, Page, BrowserContext } from 'playwright';
 import { ScrapingSource, ScrapingSourceConfig } from '../types';
 
+// Import @sparticuz/chromium for serverless environments
+let sparticuzChromium: any;
+try {
+  sparticuzChromium = require('@sparticuz/chromium');
+  console.log('✅ @sparticuz/chromium loaded successfully for Playwright');
+} catch (e) {
+  console.warn('⚠️ @sparticuz/chromium not available for Playwright:', e.message);
+}
+
+// Fallback: try to use Playwright's built-in chromium if @sparticuz/chromium fails
+let fallbackChromium: any;
+try {
+  fallbackChromium = require('playwright').chromium;
+  console.log('✅ Playwright chromium fallback loaded');
+} catch (e) {
+  console.warn('⚠️ Playwright chromium fallback not available:', e.message);
+}
+
 export abstract class PlaywrightBaseScraper {
   protected source: ScrapingSource;
   protected browser: Browser | null = null;
@@ -25,25 +43,75 @@ export abstract class PlaywrightBaseScraper {
       const isServerless = process.env.VERCEL || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL_ENV;
       
       if (isServerless) {
-        console.log('🔧 Serverless Playwright - using optimized config');
+        console.log('🔧 Serverless Playwright - using @sparticuz/chromium config');
         
-        // Playwright is much more reliable in serverless than Puppeteer
-        this.browser = await chromium.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--single-process',
-            '--no-zygote',
-            '--disable-background-timer-throttling',
-            '--disable-renderer-backgrounding',
-            '--disable-backgrounding-occluded-windows'
-          ],
-          timeout: 15000 // Fast timeout for serverless
-        });
-        console.log(`✅ Playwright browser launched for ${this.source.name}`);
+        // Check if @sparticuz/chromium is available
+        if (!sparticuzChromium) {
+          console.warn('⚠️ @sparticuz/chromium not available, trying Playwright fallback...');
+          
+          if (!fallbackChromium) {
+            throw new Error('❌ Neither @sparticuz/chromium nor Playwright chromium fallback is available');
+          }
+          
+          // Use Playwright's built-in chromium as fallback
+          console.log('🔄 Using Playwright built-in chromium as fallback');
+          this.browser = await fallbackChromium.launch({
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--single-process',
+              '--no-zygote',
+              '--disable-background-timer-throttling',
+              '--disable-renderer-backgrounding',
+              '--disable-backgrounding-occluded-windows',
+              '--memory-pressure-off',
+              '--max_old_space_size=512'
+            ],
+            timeout: 15000
+          });
+          console.log(`✅ Playwright browser launched for ${this.source.name} using fallback chromium`);
+        } else {
+          // Get the executable path from @sparticuz/chromium
+          let executablePath;
+          try {
+            executablePath = await sparticuzChromium.executablePath({
+              // Use a unique path to avoid conflicts
+              cacheDir: `/tmp/chromium-playwright-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            });
+          } catch (pathError) {
+            // Fallback to default path
+            executablePath = await sparticuzChromium.executablePath();
+          }
+          
+          console.log('✅ Using @sparticuz/chromium executable for Playwright:', executablePath);
+          
+          // Use Playwright with @sparticuz/chromium executable
+          this.browser = await chromium.launch({
+            executablePath,
+            headless: true,
+            args: [
+              // Use @sparticuz/chromium args as base
+              ...sparticuzChromium.args,
+              // Add our safe args
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--single-process',
+              '--no-zygote',
+              '--disable-background-timer-throttling',
+              '--disable-renderer-backgrounding',
+              '--disable-backgrounding-occluded-windows',
+              '--memory-pressure-off',
+              '--max_old_space_size=512'
+            ],
+            timeout: 15000 // Fast timeout for serverless
+          });
+          console.log(`✅ Playwright browser launched for ${this.source.name} using @sparticuz/chromium`);
+        }
         
       } else {
         // Local environment
