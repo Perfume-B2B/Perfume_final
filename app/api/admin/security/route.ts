@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/middleware-utils";
+import { auth } from "@/lib/auth";
 import {
   getSecurityEvents,
   getSecurityAlerts,
@@ -9,8 +9,11 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is authenticated and is admin
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action");
@@ -48,8 +51,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is authenticated and is admin
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     const body = await request.json();
     const { action, alertId, resolvedBy } = body;

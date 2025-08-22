@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/middleware-utils";
 import { prisma } from "@/lib/prisma";
 import { Parser } from "json2csv";
+import { auth } from "@/lib/auth";
 
 export interface CustomerExportFilters {
   status?: "active" | "inactive" | "all";
@@ -11,7 +11,11 @@ export interface CustomerExportFilters {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "all";

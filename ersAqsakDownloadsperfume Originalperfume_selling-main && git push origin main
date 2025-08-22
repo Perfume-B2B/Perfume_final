@@ -1,5 +1,0 @@
-[33m0970ae2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Fix: Update Supabase connection to IPv4 pooler for Vercel compatibility
-[33mfd9d371[m Fix Prisma build script for cPanel deployment
-[33m07abf2a[m Fix Windows build issues by disabling standalone output for local development
-[33mbdb22a5[m Add cPanel deployment configuration and documentation
-[33m43f8376[m Disable TypeScript and ESLint checking in next.config.js

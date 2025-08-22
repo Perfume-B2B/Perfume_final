@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button';
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { useRouter } from 'next/navigation';
-import { RefreshCcw, ArrowLeft, BarChart3 } from 'lucide-react';
+import { RefreshCcw, ArrowLeft, BarChart3, StopCircle, Trash2 } from 'lucide-react';
 
 interface StatsResponse {
   totalSuppliers: number;
@@ -24,6 +24,7 @@ export default function ScrapingStatusPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -64,6 +65,52 @@ export default function ScrapingStatusPage() {
     if (diffMins < 60) return `${diffMins} minutes ago`;
     if (diffHours < 24) return `${diffHours} hours ago`;
     return `${diffDays} days ago`;
+  };
+
+  const handleStopJob = async (jobId: string) => {
+    setActionLoading(jobId);
+    try {
+      const response = await fetch(`/api/admin/scraping/jobs/${jobId}/stop`, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        await loadAll(); // Refresh the data
+      } else {
+        const error = await response.json();
+        alert(`Failed to stop job: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error stopping job:', error);
+      alert('Failed to stop job. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+      return;
+    }
+
+    setActionLoading(jobId);
+    try {
+      const response = await fetch(`/api/admin/scraping/jobs/${jobId}/delete`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        await loadAll(); // Refresh the data
+      } else {
+        const error = await response.json();
+        alert(`Failed to delete job: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      alert('Failed to delete job. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -142,6 +189,7 @@ export default function ScrapingStatusPage() {
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Completed</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -160,6 +208,42 @@ export default function ScrapingStatusPage() {
                             </td>
                             <td className="px-4 py-2 text-sm text-gray-700">{j.startedAt ? new Date(j.startedAt).toLocaleString() : '—'}</td>
                             <td className="px-4 py-2 text-sm text-gray-700">{j.completedAt ? new Date(j.completedAt).toLocaleString() : '—'}</td>
+                            <td className="px-4 py-2">
+                              <div className="flex items-center gap-2">
+                                {(j.status === 'RUNNING' || j.status === 'PENDING') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleStopJob(j.id)}
+                                    disabled={actionLoading === j.id}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                                  >
+                                    {actionLoading === j.id ? (
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                                    ) : (
+                                      <StopCircle className="h-3 w-3" />
+                                    )}
+                                    <span className="ml-1">Stop</span>
+                                  </Button>
+                                )}
+                                {(j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'STOPPED') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDeleteJob(j.id)}
+                                    disabled={actionLoading === j.id}
+                                    className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                                  >
+                                    {actionLoading === j.id ? (
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600"></div>
+                                    ) : (
+                                      <Trash2 className="h-3 w-3" />
+                                    )}
+                                    <span className="ml-1">Delete</span>
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

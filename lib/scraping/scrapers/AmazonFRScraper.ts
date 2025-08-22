@@ -1,44 +1,44 @@
 import { BaseScraper } from './BaseScraper';
 import { ScrapingSource, ScrapedProductData } from '../types';
 
-export class AmazonNLScraper extends BaseScraper {
+export class AmazonFRScraper extends BaseScraper {
   constructor(source: ScrapingSource) {
     super(source);
   }
 
   async searchProducts(searchTerm: string): Promise<ScrapedProductData[]> {
     try {
-      const searchUrl = `https://www.amazon.nl/s?k=${encodeURIComponent(searchTerm)}`;
-      console.log(`🔍 Amazon NL: Searching for "${searchTerm}"`);
-      console.log(`🔗 Amazon NL: URL = ${searchUrl}`);
+      const searchUrl = `https://www.amazon.fr/s?k=${encodeURIComponent(searchTerm)}`;
+      console.log(`🔍 Amazon FR: Searching for "${searchTerm}"`);
+      console.log(`🔗 Amazon FR: URL = ${searchUrl}`);
       
       await this.navigateToUrl(searchUrl);
-      console.log(`✅ Amazon NL: Navigation completed`);
+      console.log(`✅ Amazon FR: Navigation completed`);
       
       // Wait for page to load (optimized)
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Check page title
       const pageTitle = await this.page.title();
-      console.log(`📄 Amazon NL: Page title = "${pageTitle}"`);
+      console.log(`📄 Amazon FR: Page title = "${pageTitle}"`);
       
       // Check current URL
       const currentUrl = this.page.url();
-      console.log(`🔗 Amazon NL: Current URL = ${currentUrl}`);
+      console.log(`🔗 Amazon FR: Current URL = ${currentUrl}`);
       
       // Check for anti-bot protection
       if (await this.hasAntiBotProtection()) {
-        console.warn('⚠️ Amazon NL: Anti-bot protection detected');
+        console.warn('⚠️ Amazon FR: Anti-bot protection detected');
         return [];
       }
-      console.log(`✅ Amazon NL: No anti-bot protection detected`);
+      console.log(`✅ Amazon FR: No anti-bot protection detected`);
 
       // Try to wait for search results (optimized timeout)
       try {
         await this.waitForSelector('[data-component-type="s-search-result"]', 5000);
-        console.log(`✅ Amazon NL: Search results selector found`);
+        console.log(`✅ Amazon FR: Search results selector found`);
       } catch (selectorError) {
-        console.log(`❌ Amazon NL: Main selector failed, trying alternatives...`);
+        console.log(`❌ Amazon FR: Main selector failed, trying alternatives...`);
         
         // Try alternative selectors
         const alternatives = ['.s-result-item', '[data-asin]', '[cel_widget_id*="MAIN-SEARCH_RESULTS"]'];
@@ -47,11 +47,11 @@ export class AmazonNLScraper extends BaseScraper {
         for (const altSelector of alternatives) {
           try {
             await this.waitForSelector(altSelector, 2000);
-            console.log(`✅ Amazon NL: Alternative selector "${altSelector}" found`);
+            console.log(`✅ Amazon FR: Alternative selector "${altSelector}" found`);
             found = true;
             break;
           } catch (e) {
-            console.log(`❌ Amazon NL: Alternative selector "${altSelector}" failed`);
+            console.log(`❌ Amazon FR: Alternative selector "${altSelector}" failed`);
           }
         }
         
@@ -72,16 +72,16 @@ export class AmazonNLScraper extends BaseScraper {
       
       for (const selector of selectors) {
         productElements = await this.page.$$(selector);
-        console.log(`🔍 Amazon NL: Selector "${selector}" found ${productElements.length} elements`);
+        console.log(`🔍 Amazon FR: Selector "${selector}" found ${productElements.length} elements`);
         if (productElements.length > 0) break;
       }
 
       if (productElements.length === 0) {
-        console.log(`❌ Amazon NL: No product elements found with any selector`);
+        console.log(`❌ Amazon FR: No product elements found with any selector`);
         return [];
       }
 
-      console.log(`📦 Amazon NL: Processing ${Math.min(productElements.length, 10)} products...`);
+      console.log(`📦 Amazon FR: Processing ${Math.min(productElements.length, 10)} products...`);
 
       for (const [index, element] of productElements.slice(0, 10).entries()) {
         try {
@@ -99,11 +99,11 @@ export class AmazonNLScraper extends BaseScraper {
         }
       }
 
-      console.log(`🎯 Amazon NL: Successfully extracted ${products.length} products`);
+      console.log(`🎯 Amazon FR: Successfully extracted ${products.length} products`);
       return products;
 
     } catch (error) {
-      console.error('💥 Amazon NL: Search failed:', error.message);
+      console.error('💥 Amazon FR: Search failed:', error.message);
       return [];
     }
   }
@@ -120,7 +120,7 @@ export class AmazonNLScraper extends BaseScraper {
       return searchResults[0];
 
     } catch (error) {
-      console.error('Error scraping product from Amazon NL:', error);
+      console.error('Error scraping product from Amazon FR:', error);
       return null;
     }
   }
@@ -221,13 +221,12 @@ export class AmazonNLScraper extends BaseScraper {
           if (linkElement) {
             const href = await this.page.evaluate(el => {
               const hrefAttr = el.getAttribute('href');
-              // Also try data-href as fallback
               return hrefAttr || el.getAttribute('data-href');
             }, linkElement);
             
             console.log(`      🔍 Trying URL selector "${linkSelector}": ${href ? href.substring(0, 50) + '...' : 'null'}`);
             
-            if (href && href.length > 5) { // Make sure it's a valid URL
+            if (href && href.length > 5) {
               url = href;
               usedLinkSelector = linkSelector;
               console.log(`      ✅ URL selector "${linkSelector}" found: ${href.substring(0, 50)}...`);
@@ -247,15 +246,14 @@ export class AmazonNLScraper extends BaseScraper {
         if (url.startsWith('http')) {
           fullUrl = url;
         } else if (url.startsWith('/')) {
-          fullUrl = `https://www.amazon.nl${url}`;
+          fullUrl = `https://www.amazon.fr${url}`;
         } else {
-          fullUrl = `https://www.amazon.nl/${url}`;
+          fullUrl = `https://www.amazon.fr/${url}`;
         }
         
-        // Clean up URL parameters that might cause issues
+        // Clean up URL parameters
         try {
           const urlObj = new URL(fullUrl);
-          // Keep only essential parameters
           const essentialParams = ['dp', 'gp', 'product'];
           const newParams = new URLSearchParams();
           for (const [key, value] of urlObj.searchParams) {
@@ -266,7 +264,6 @@ export class AmazonNLScraper extends BaseScraper {
           urlObj.search = newParams.toString();
           fullUrl = urlObj.toString();
         } catch (e) {
-          // If URL parsing fails, use the original
           console.log(`      ⚠️ URL parsing failed, using original: ${url}`);
         }
       }
@@ -276,21 +273,21 @@ export class AmazonNLScraper extends BaseScraper {
       // Extract availability
       const availabilityElement = await element.$('.a-color-price');
       const availabilityText = availabilityElement ? await this.page.evaluate(el => el.textContent?.trim(), availabilityElement) : '';
-      const availability = !availabilityText.toLowerCase().includes('niet op voorraad');
+      const availability = !availabilityText.toLowerCase().includes('rupture de stock');
       console.log(`      ✅ Availability: ${availability} (text: "${availabilityText}")`);
 
       // Extract merchant - improved approach to avoid numbers
-      let merchant = 'Amazon NL';
+      let merchant = 'Amazon FR';
       let merchantText = '';
       
       // Try to find actual merchant name, not numbers
       const merchantSelectors = [
-        'span[aria-label*="door"]', // Dutch "by" indicator
+        'span[aria-label*="par"]', // French "by" indicator
         '.a-size-base-plus:not([class*="price"])',
         '.a-color-base:not([class*="price"])',
         '.a-row .a-size-base:not([class*="price"])',
         '.s-size-mini .a-color-base',
-        'span:contains("door")', // Dutch for "by"
+        'span:contains("par")', // French for "by"
         '.a-color-secondary:not([class*="price"]):not([class*="shipping"])'
       ];
       
@@ -305,15 +302,15 @@ export class AmazonNLScraper extends BaseScraper {
                 !text.match(/^\d+$/) && // Not just numbers
                 !text.match(/^€/) && // Not a price
                 !text.match(/^\d+[,\.]?\d*\s*€/) && // Not a price with currency
-                !text.includes('verzending') && // Not shipping info
+                !text.includes('livraison') && // Not shipping info
                 !text.includes('shipping') &&
-                !text.includes('gratis') &&
-                !text.includes('bezorging') &&
+                !text.includes('gratuit') &&
+                !text.includes('expédition') &&
                 text !== 'true' &&
                 text !== 'false') {
               
               // Clean up common prefixes
-              let cleanMerchant = text.replace(/^door\s+/i, '').trim();
+              let cleanMerchant = text.replace(/^par\s+/i, '').trim();
               cleanMerchant = cleanMerchant.replace(/^by\s+/i, '').trim();
               
               if (cleanMerchant.length > 2) {
@@ -324,7 +321,7 @@ export class AmazonNLScraper extends BaseScraper {
               }
             }
           }
-          if (merchant !== 'Amazon NL') break; // Found a valid merchant
+          if (merchant !== 'Amazon FR') break; // Found a valid merchant
         } catch (e) {
           console.log(`      ❌ Merchant selector "${merchantSelector}" failed: ${e.message}`);
         }
@@ -332,7 +329,7 @@ export class AmazonNLScraper extends BaseScraper {
       
       // Fallback: if we still have numbers or invalid data, use Amazon
       if (merchant.match(/^\d+$/) || merchant.length < 3) {
-        merchant = 'Amazon NL';
+        merchant = 'Amazon FR';
         console.log(`      🏪 Merchant defaulted to: "${merchant}" (was: "${merchantText}")`);
       } else {
         console.log(`      🏪 Final merchant: "${merchant}"`);
@@ -352,7 +349,7 @@ export class AmazonNLScraper extends BaseScraper {
         merchant: merchant.trim(),
         availability,
         shippingCost: shippingCost ? shippingCost.toString() : undefined,
-        source: 'amazon-nl',
+        source: 'amazon-fr',
         scrapedAt: new Date().toISOString()
       };
       
@@ -378,7 +375,7 @@ export class AmazonNLScraper extends BaseScraper {
   private parseShippingCost(shippingText: string): number | null {
     if (!shippingText) return null;
     
-    // Look for shipping cost patterns like "Verzendkosten: €2,99"
+    // Look for shipping cost patterns like "Livraison: €2,99"
     const shippingMatch = shippingText.match(/€\s*(\d+[,\d]*)/);
     if (shippingMatch) {
       const cleanPrice = shippingMatch[1].replace(',', '.');
@@ -387,7 +384,7 @@ export class AmazonNLScraper extends BaseScraper {
     }
     
     // Check for free shipping
-    if (shippingText.toLowerCase().includes('gratis verzending')) {
+    if (shippingText.toLowerCase().includes('livraison gratuite')) {
       return 0;
     }
     
@@ -408,7 +405,7 @@ export class AmazonNLScraper extends BaseScraper {
   }
 
   protected async waitForRateLimit(): Promise<void> {
-    // Amazon NL is sensitive to rate limiting, wait longer
+    // Amazon FR is sensitive to rate limiting, wait longer
     await this.delay(2000 + Math.random() * 1000);
   }
 }

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/middleware-utils";
+import { auth } from "@/lib/auth";
 import { getImportHistory, getImportHistoryById } from "@/lib/import/importHistory";
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is authenticated and is admin
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");

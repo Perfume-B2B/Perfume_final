@@ -12,7 +12,11 @@ import {
   Calendar,
   Download,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  Search,
+  ExternalLink,
+  ChevronDown,
+  Star
 } from 'lucide-react';
 import PriceResultsTable from '@/components/scraping/PriceResultsTable';
 import { PriceScrapingResult, NormalizedProductData } from '@/lib/scraping/types';
@@ -23,105 +27,100 @@ export default function ResultsPage({}: ResultsPageProps) {
   const router = useRouter();
   const [results, setResults] = useState<PriceScrapingResult[]>([]);
   const [normalizedProducts, setNormalizedProducts] = useState<NormalizedProductData[]>([]);
+  const [apiAnalytics, setApiAnalytics] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedMerchant, setSelectedMerchant] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'price' | 'confidence'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Mock data for demonstration
+  // Fetch real data from API
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setNormalizedProducts([
-        {
-          id: '1',
-          supplierId: 'supplier1',
-          brand: 'Chanel',
-          productName: 'Chanel N°5 Eau de Parfum',
-          variantSize: '100ml',
-          ean: '1234567890123',
-          wholesalePrice: '45.00',
-          currency: 'EUR',
-          packSize: '1',
-          supplierName: 'Luxury Fragrances Ltd',
-          lastPurchasePrice: '42.00',
-          availability: 'In Stock',
-          notes: 'Classic fragrance',
-          importSessionId: 'session1'
-        },
-        {
-          id: '2',
-          supplierId: 'supplier1',
-          brand: 'Dior',
-          productName: 'Dior Sauvage Eau de Toilette',
-          variantSize: '100ml',
-          ean: '1234567890124',
-          wholesalePrice: '38.00',
-          currency: 'EUR',
-          packSize: '1',
-          supplierName: 'Luxury Fragrances Ltd',
-          lastPurchasePrice: '35.00',
-          availability: 'In Stock',
-          notes: "Popular men's fragrance",
-          importSessionId: 'session1'
-        },
-        {
-          id: '3',
-          supplierId: 'supplier2',
-          brand: 'Tom Ford',
-          productName: 'Black Orchid Eau de Parfum',
-          variantSize: '50ml',
-          ean: '1234567890125',
-          wholesalePrice: '65.00',
-          currency: 'EUR',
-          packSize: '1',
-          supplierName: 'Premium Scents Co',
-          lastPurchasePrice: '62.00',
-          availability: 'In Stock',
-          notes: 'Luxury oriental fragrance',
-          importSessionId: 'session2'
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch price scraping results
+        const response = await fetch('/api/admin/scraping/price-results?limit=100');
+        if (!response.ok) {
+          throw new Error('Failed to fetch price results');
         }
-      ]);
-
-      // Generate mock historical results
-      const mockResults: PriceScrapingResult[] = [];
-      const sources = ['Bol.com', 'Amazon NL', 'Amazon DE', 'House of Niche'];
-      
-      normalizedProducts.forEach((product, productIndex) => {
-        sources.forEach((source, sourceIndex) => {
-          // Generate results for different dates
-          for (let i = 0; i < 3; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() - (i * 2 + sourceIndex));
-            
-            const wholesalePrice = parseFloat(product.wholesalePrice);
-            const baseRetailPrice = wholesalePrice * (1.2 + Math.random() * 0.6); // 20-80% markup
-            const priceVariation = (Math.random() - 0.5) * 0.3; // ±15% variation
-            const finalPrice = baseRetailPrice * (1 + priceVariation);
-            
-            mockResults.push({
-              id: `${product.id}-${sourceIndex}-${i}`,
-              normalizedProductId: product.id,
-              sourceId: source.toLowerCase().replace(/\s+/g, '-'),
-              productTitle: `${product.brand} ${product.productName}`,
-              merchant: source,
-              url: `https://example.com/product/${product.ean}`,
-              price: finalPrice.toFixed(2),
-              currency: product.currency,
-              priceInclVat: true,
-              shippingCost: (Math.random() * 5 + 2).toFixed(2),
-              availability: Math.random() > 0.1 ? 'In Stock' : 'Limited Stock',
-              confidenceScore: (0.7 + Math.random() * 0.3).toFixed(2),
-              isLowestPrice: sourceIndex === 0 && i === 0,
-              scrapedAt: date,
-              jobId: `job-${productIndex}-${sourceIndex}`
-            });
+        
+        const data = await response.json();
+        if (data.success && data.results) {
+          setResults(data.results);
+          
+          // Extract normalized products from results
+          const products = data.results
+            .map((result: any) => result.normalizedProduct)
+            .filter(Boolean)
+            .filter((product: any, index: number, self: any[]) => 
+              self.findIndex(p => p.id === product.id) === index
+            );
+          
+          setNormalizedProducts(products);
+          
+          // Set API analytics if available
+          if (data.analytics) {
+            setApiAnalytics(data.analytics);
           }
-        });
-      });
-      
-      setResults(mockResults);
-      setIsLoading(false);
-    }, 1000);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to empty arrays if API fails
+        setResults([]);
+        setNormalizedProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
+
+  // Get unique merchants for filter dropdown
+  const uniqueMerchants = Array.from(new Set(results.map(r => r.merchant))).filter(Boolean);
+
+  // Filter and sort results
+  const filteredResults = results
+    .filter(result => {
+      // Search filter
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesProduct = result.productTitle?.toLowerCase().includes(search);
+        const matchesMerchant = result.merchant?.toLowerCase().includes(search);
+        if (!matchesProduct && !matchesMerchant) return false;
+      }
+      
+      // Merchant filter
+      if (selectedMerchant !== 'all' && result.merchant !== selectedMerchant) {
+        return false;
+      }
+      
+      return true;
+    })
+    .sort((a, b) => {
+      let valueA: any, valueB: any;
+      
+      switch (sortBy) {
+        case 'price':
+          valueA = a.priceInclVat || 0;
+          valueB = b.priceInclVat || 0;
+          break;
+        case 'confidence':
+          valueA = a.confidenceScore || 0;
+          valueB = b.confidenceScore || 0;
+          break;
+        case 'date':
+        default:
+          valueA = new Date(a.scrapedAt || 0).getTime();
+          valueB = new Date(b.scrapedAt || 0).getTime();
+          break;
+      }
+      
+      return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+    });
 
   const handleExport = (format: 'csv' | 'json') => {
     if (results.length === 0) return;
@@ -135,12 +134,12 @@ export default function ResultsPage({}: ResultsPageProps) {
           return [
             `"${product?.productName || 'Unknown'}"`,
             `"${product?.brand || 'Unknown'}"`,
-            `"${result.merchant}"`,
-            result.price,
-            result.currency,
-            result.confidenceScore,
-            result.scrapedAt.toLocaleDateString(),
-            `"${result.url}"`
+            `"${result.merchant || 'Unknown'}"`,
+            result.price || '0',
+            result.currency || 'EUR',
+            result.confidenceScore || '0',
+            result.scrapedAt ? new Date(result.scrapedAt).toLocaleDateString() : 'Unknown',
+            `"${result.url || 'Unknown'}"`
           ].join(',');
         })
       ].join('\n');
@@ -164,12 +163,40 @@ export default function ResultsPage({}: ResultsPageProps) {
     }
   };
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    // Simulate refresh
-    setTimeout(() => {
+  const handleRefresh = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch fresh data from API
+      const response = await fetch('/api/admin/scraping/price-results?limit=100');
+      if (!response.ok) {
+        throw new Error('Failed to fetch price results');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.results) {
+        setResults(data.results);
+        
+        // Extract normalized products from results
+        const products = data.results
+          .map((result: any) => result.normalizedProduct)
+          .filter(Boolean)
+          .filter((product: any, index: number, self: any[]) => 
+            self.findIndex(p => p.id === product.id) === index
+          );
+        
+        setNormalizedProducts(products);
+        
+        // Set API analytics if available
+        if (data.analytics) {
+          setApiAnalytics(data.analytics);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const getFilteredResults = () => {
@@ -184,7 +211,7 @@ export default function ResultsPage({}: ResultsPageProps) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days[dateRange]);
     
-    return results.filter(result => result.scrapedAt >= cutoffDate);
+    return results.filter(result => new Date(result.scrapedAt) >= cutoffDate);
   };
 
   const getAnalytics = () => {
@@ -194,16 +221,16 @@ export default function ResultsPage({}: ResultsPageProps) {
     
     const totalProducts = new Set(filteredResults.map(r => r.normalizedProductId)).size;
     const totalSources = new Set(filteredResults.map(r => r.merchant)).size;
-    const averagePrice = filteredResults.reduce((sum, r) => sum + parseFloat(r.price), 0) / filteredResults.length;
-    const highConfidenceCount = filteredResults.filter(r => parseFloat(r.confidenceScore) >= 0.8).length;
+    const averagePrice = filteredResults.reduce((sum, r) => sum + parseFloat(String(r.price || '0')), 0) / filteredResults.length;
+    const highConfidenceCount = filteredResults.filter(r => parseFloat(String(r.confidenceScore || '0')) >= 0.8).length;
     
     // Calculate margin opportunities
     const opportunities = filteredResults.filter(result => {
       const product = normalizedProducts.find(p => p.id === result.normalizedProductId);
       if (!product) return false;
       
-      const wholesalePrice = parseFloat(product.wholesalePrice);
-      const retailPrice = parseFloat(result.price);
+      const wholesalePrice = parseFloat(String(product.wholesalePrice || '0'));
+      const retailPrice = parseFloat(String(result.price || '0'));
       const margin = retailPrice - wholesalePrice;
       const marginPercentage = wholesalePrice > 0 ? (margin / wholesalePrice) * 100 : 0;
       
@@ -221,7 +248,8 @@ export default function ResultsPage({}: ResultsPageProps) {
     };
   };
 
-  const analytics = getAnalytics();
+  // Use API analytics if available, otherwise calculate locally
+  const analytics = apiAnalytics || getAnalytics();
 
   if (isLoading) {
     return (
@@ -255,6 +283,104 @@ export default function ResultsPage({}: ResultsPageProps) {
           </div>
         </div>
 
+        {/* Search and Filter Controls */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Search products or merchants..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Merchant Filter */}
+              <div className="relative">
+                <select
+                  value={selectedMerchant}
+                  onChange={(e) => setSelectedMerchant(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                >
+                  <option value="all">All Merchants</option>
+                  {uniqueMerchants.map(merchant => (
+                    <option key={merchant} value={merchant}>{merchant}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+              </div>
+
+              {/* Sort By */}
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'date' | 'price' | 'confidence')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                >
+                  <option value="date">Sort by Date</option>
+                  <option value="price">Sort by Price</option>
+                  <option value="confidence">Sort by Confidence</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+              </div>
+
+              {/* Sort Order */}
+              <div className="flex gap-2">
+                <Button
+                  variant={sortOrder === 'desc' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortOrder('desc')}
+                  className="flex-1"
+                >
+                  ↓ Desc
+                </Button>
+                <Button
+                  variant={sortOrder === 'asc' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortOrder('asc')}
+                  className="flex-1"
+                >
+                  ↑ Asc
+                </Button>
+              </div>
+            </div>
+
+            {/* Filter Summary */}
+            <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+              <span>
+                Showing {filteredResults.length} of {results.length} results
+                {searchTerm && (
+                  <span className="ml-2 text-blue-600">
+                    for "{searchTerm}"
+                  </span>
+                )}
+                {selectedMerchant !== 'all' && (
+                  <span className="ml-2 text-green-600">
+                    from {selectedMerchant}
+                  </span>
+                )}
+              </span>
+              
+              {(searchTerm || selectedMerchant !== 'all') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedMerchant('all');
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Analytics Overview */}
         {analytics && (
           <Card className="mb-8">
@@ -276,11 +402,11 @@ export default function ResultsPage({}: ResultsPageProps) {
                   <div className="text-sm text-blue-600">Total Results</div>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{analytics.totalProducts}</div>
+                  <div className="text-2xl font-bold text-green-600">{analytics.productsCount || analytics.totalProducts}</div>
                   <div className="text-sm text-green-600">Products</div>
                 </div>
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{analytics.totalSources}</div>
+                  <div className="text-2xl font-bold text-purple-600">{analytics.sourcesCount || analytics.totalSources}</div>
                   <div className="text-sm text-purple-600">Sources</div>
                 </div>
                 <div className="text-center p-4 bg-yellow-50 rounded-lg">
@@ -292,7 +418,7 @@ export default function ResultsPage({}: ResultsPageProps) {
                   <div className="text-sm text-indigo-600">High Confidence</div>
                 </div>
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{analytics.opportunities}</div>
+                  <div className="text-2xl font-bold text-orange-600">{analytics.opportunitiesCount || analytics.opportunities}</div>
                   <div className="text-sm text-orange-600">Opportunities</div>
                 </div>
               </div>
@@ -345,7 +471,7 @@ export default function ResultsPage({}: ResultsPageProps) {
 
         {/* Results Table */}
         <PriceResultsTable
-          results={getFilteredResults()}
+          results={filteredResults}
           normalizedProducts={normalizedProducts}
           onExport={handleExport}
           onRefresh={handleRefresh}

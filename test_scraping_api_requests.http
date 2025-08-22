@@ -1,0 +1,161 @@
+# 🚀 Scraper API Testing Requests
+# Use this file with REST Client extension in VS Code or import to Postman
+
+# Base URL - adjust according to your environment
+@baseUrl = http://localhost:3000
+@adminToken = YOUR_ADMIN_SESSION_TOKEN_HERE
+
+### 1. Import CSV Data for Scraping
+POST {{baseUrl}}/api/admin/scraping/import
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "supplierId": "supplier_id_here",
+  "fileName": "test_scraping_products.csv",
+  "columnMapping": {
+    "brand": "Brand",
+    "productName": "Product Name",
+    "variantSize": "Variant Size",
+    "ean": "EAN",
+    "wholesalePrice": "Wholesale Price",
+    "currency": "Currency",
+    "packSize": "Pack Size",
+    "supplier": "Supplier",
+    "lastPurchasePrice": "Last Purchase Price",
+    "availability": "Availability",
+    "notes": "Notes"
+  },
+  "rows": [
+    {
+      "Brand": "Chanel",
+      "Product Name": "Bleu de Chanel Eau de Parfum",
+      "Variant Size": "100ml",
+      "EAN": "3145891074604",
+      "Wholesale Price": "45.00",
+      "Currency": "EUR",
+      "Pack Size": "1",
+      "Supplier": "Chanel Supplier",
+      "Last Purchase Price": "42.00",
+      "Availability": "Available",
+      "Notes": "Popular men's fragrance with woody notes"
+    }
+    // ... more rows would be added here
+  ]
+}
+
+### 2. Start Price Scanning Job
+POST {{baseUrl}}/api/admin/scraping/price-scan
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "supplierId": "supplier_id_here",
+  "sources": ["amazon_nl_source_id", "bol_com_source_id"],
+  "priority": "normal",
+  "config": {
+    "batchSize": 10,
+    "delayBetweenBatches": 5000,
+    "maxRetries": 3,
+    "confidenceThreshold": 0.7
+  }
+}
+
+### 3. Check Job Status
+GET {{baseUrl}}/api/admin/scraping/price-scan?jobId=JOB_ID_HERE
+Authorization: Bearer {{adminToken}}
+
+### 4. Get All Jobs for Supplier
+GET {{baseUrl}}/api/admin/scraping/price-scan?supplierId=supplier_id_here
+Authorization: Bearer {{adminToken}}
+
+### 5. Get Scraping Sources
+GET {{baseUrl}}/api/admin/scraping/sources
+Authorization: Bearer {{adminToken}}
+
+### 6. Get Supplier Mapping Templates
+GET {{baseUrl}}/api/admin/scraping/import?supplierId=supplier_id_here
+Authorization: Bearer {{adminToken}}
+
+### 7. Test with Minimal Data (Single Product)
+POST {{baseUrl}}/api/admin/scraping/import
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "supplierId": "supplier_id_here",
+  "fileName": "single_product_test.csv",
+  "columnMapping": {
+    "brand": "Brand",
+    "productName": "Product Name",
+    "wholesalePrice": "Wholesale Price"
+  },
+  "rows": [
+    {
+      "Brand": "Chanel",
+      "Product Name": "Bleu de Chanel Eau de Parfum",
+      "Wholesale Price": "45.00"
+    }
+  ]
+}
+
+### 8. Test Price Scanning with Specific Products
+POST {{baseUrl}}/api/admin/scraping/price-scan
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "productIds": ["product_id_1", "product_id_2"],
+  "sources": ["amazon_nl_source_id"],
+  "priority": "high",
+  "config": {
+    "batchSize": 5,
+    "delayBetweenBatches": 3000,
+    "maxRetries": 5,
+    "confidenceThreshold": 0.8
+  }
+}
+
+### 9. Health Check for Scrapers
+GET {{baseUrl}}/api/admin/scraping/health
+Authorization: Bearer {{adminToken}}
+
+### 10. Get Scraping Statistics
+GET {{baseUrl}}/api/admin/scraping/stats?supplierId=supplier_id_here
+Authorization: Bearer {{adminToken}}
+
+# 🔧 Environment Variables for Testing
+# Create a .env file or set these in your environment:
+# 
+# SCRAPING_BASE_URL=http://localhost:3000
+# ADMIN_EMAIL=admin@example.com
+# ADMIN_PASSWORD=your_password
+# SUPPLIER_ID=your_supplier_id
+# AMAZON_NL_SOURCE_ID=amazon_source_id
+# BOL_COM_SOURCE_ID=bol_com_source_id
+
+# 📝 Notes for Testing:
+# 
+# 1. Replace placeholder values:
+#    - supplier_id_here → actual supplier ID from database
+#    - JOB_ID_HERE → actual job ID returned from price-scan
+#    - source IDs → actual scraping source IDs
+# 
+# 2. Authentication:
+#    - Use session cookies or JWT tokens
+#    - Ensure admin role permissions
+# 
+# 3. Data Validation:
+#    - Check required fields are present
+#    - Verify data types (prices as strings, etc.)
+#    - Ensure EAN codes are valid
+# 
+# 4. Error Handling:
+#    - Test with invalid data
+#    - Check error responses
+#    - Verify validation messages
+# 
+# 5. Performance Testing:
+#    - Monitor response times
+#    - Check database performance
+#    - Verify rate limiting

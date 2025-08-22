@@ -6,6 +6,59 @@ import { ScrapingManager } from '@/lib/scraping/ScrapingManager';
 
 // Use shared prisma client
 
+// Helper function to process scraping jobs asynchronously
+async function processScrapingJob(
+  jobId: string, 
+  manager: ScrapingManager, 
+  activeSources: any[], 
+  productsToProcess: any[], 
+  job: any
+) {
+  try {
+    console.log(`🚀 [Job ${jobId}] Starting with ${activeSources.length} sources and ${productsToProcess.length} products`);
+    
+    // Step 1: Initialize scrapers with timeout for Vercel
+    console.log(`📡 [Job ${jobId}] Initializing scrapers...`);
+    
+    const initPromise = manager.initializeScrapers(activeSources);
+    const initTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Scraper initialization timed out after 90 seconds')), 90000)
+    );
+    
+    await Promise.race([initPromise, initTimeout]);
+    console.log(`✅ [Job ${jobId}] Scrapers initialized successfully`);
+    
+    // Step 2: Start the scraping job
+    console.log(`🔍 [Job ${jobId}] Starting scraping process...`);
+    await manager.startScrapingJob({ 
+      ...job, 
+      config: {
+        ...job.config,
+        sources: job.config.sources || []
+      } as any 
+    } as any, productsToProcess as any);
+    
+    console.log(`✅ [Job ${jobId}] Completed successfully`);
+    
+  } catch (err) {
+    console.error(`❌ [Job ${jobId}] Failed:`, err);
+    
+    // Ensure the job gets marked as failed
+    try {
+      await prisma.priceScrapingJob.update({ 
+        where: { id: jobId }, 
+        data: { 
+          status: 'FAILED', 
+          errorMessage: String(err) 
+        } 
+      });
+      console.log(`📝 [Job ${jobId}] Status updated to FAILED`);
+    } catch (updateErr) {
+      console.error(`💥 [Job ${jobId}] Failed to update status:`, updateErr);
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth().catch(() => null);
@@ -140,14 +193,8 @@ export async function POST(request: NextRequest) {
       where: sources && sources.length > 0 ? { id: { in: sources }, isActive: true } : { isActive: true },
     });
 
-    // Kick off the job without waiting
-    manager
-      .initializeScrapers(activeSources)
-      .then(() => manager.startScrapingJob({ ...job, config: job.config as any } as any, productsToProcess as any))
-      .catch(async (err) => {
-        console.error('Scraping job failed to start:', err);
-        await prisma.priceScrapingJob.update({ where: { id: job.id }, data: { status: 'FAILED', errorMessage: String(err) } });
-      });
+    // Kick off the job without waiting - simplified for serverless
+    processScrapingJob(job.id, manager, activeSources, productsToProcess, job).catch(console.error);
 
     const response: PriceScanResponse = {
       success: true,

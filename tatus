@@ -1,0 +1,30 @@
+[33mcommit 2e2b51ba4a60884d2635bd9f87d91221eda70fca[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Techinsane-official <educationxploreofficial@gmail.com>
+Date:   Fri Aug 22 01:13:31 2025 +0500
+
+     Fix Vercel serverless timeout issues
+    
+     Key Fixes for Running  Pending Issue:
+    - Increased Vercel function timeout to 300s for scraping APIs
+    - Increased memory to 3008MB for browser operations
+    - Added ultra-fast serverless browser configuration
+    - Implemented aggressive timeout protection (10s browser, 5s page)
+    - Disabled JavaScript, images, and non-essential features for speed
+    
+     Serverless Optimizations:
+    - Ultra-minimal Chrome args for maximum startup speed
+    - Timeout protection for browser launch, page creation, and setup
+    - Better error handling with cleanup on failure
+    - Detailed timing logs for debugging
+    
+     Performance Improvements:
+    - 15s browser launch timeout vs 30s default
+    - Disabled images, JS, and other bandwidth-heavy features
+    - Single-process mode for serverless compatibility
+    - Faster failure detection and recovery
+    
+     Expected Result: Jobs should complete without reverting to pending
+
+lib/scraping/scrapers/BaseScraper.ts
+package.json
+vercel.json

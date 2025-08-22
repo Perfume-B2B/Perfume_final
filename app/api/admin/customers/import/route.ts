@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/middleware-utils";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { parse } from "csv-parse/sync";
@@ -41,7 +41,11 @@ const customerImportSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin();
+    // Check authentication and admin role
+    const session = await auth();
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
 
     const formData = await request.formData();
     const file = formData.get("file") as File;

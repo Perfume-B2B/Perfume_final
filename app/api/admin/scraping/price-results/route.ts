@@ -141,13 +141,9 @@ async function calculateAnalytics(where: any) {
     });
 
     // Calculate opportunities (where retail price is significantly higher than wholesale)
+    // First get all results with their normalized products to check wholesale prices
     const opportunitiesQuery = await prisma.priceScrapingResult.findMany({
-      where: {
-        ...where,
-        normalizedProduct: {
-          wholesalePrice: { not: null }
-        }
-      },
+      where,
       include: {
         normalizedProduct: {
           select: {
@@ -159,7 +155,7 @@ async function calculateAnalytics(where: any) {
 
     let opportunitiesCount = 0;
     for (const result of opportunitiesQuery) {
-      if (result.normalizedProduct.wholesalePrice) {
+      if (result.normalizedProduct && result.normalizedProduct.wholesalePrice !== null && result.normalizedProduct.wholesalePrice !== undefined) {
         const wholesalePrice = parseFloat(result.normalizedProduct.wholesalePrice.toString());
         const retailPrice = parseFloat(result.price.toString());
         const margin = ((retailPrice - wholesalePrice) / wholesalePrice) * 100;
