@@ -80,21 +80,12 @@ export abstract class PlaywrightBaseScraper {
           let executablePath;
           try {
             console.log('📁 Getting @sparticuz/chromium executable path...');
-            executablePath = await sparticuzChromium.executablePath({
-              // Use a unique path to avoid conflicts
-              cacheDir: `/tmp/chromium-playwright-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-            });
+            // Use default path without custom cache dir to avoid issues
+            executablePath = await sparticuzChromium.executablePath();
             console.log('✅ Executable path obtained:', executablePath);
           } catch (pathError) {
-            console.warn('⚠️ Failed to get custom cache dir, using default:', pathError.message);
-            // Fallback to default path
-            try {
-              executablePath = await sparticuzChromium.executablePath();
-              console.log('✅ Fallback executable path obtained:', executablePath);
-            } catch (fallbackError) {
-              console.error('❌ Failed to get any executable path:', fallbackError.message);
-              throw new Error(`Failed to get @sparticuz/chromium executable path: ${fallbackError.message}`);
-            }
+            console.warn('⚠️ Failed to get executable path:', pathError.message);
+            throw new Error(`Failed to get @sparticuz/chromium executable path: ${pathError.message}`);
           }
           
           console.log('✅ Using @sparticuz/chromium executable for Playwright:', executablePath);
@@ -104,31 +95,30 @@ export abstract class PlaywrightBaseScraper {
           console.log('🔍 @sparticuz/chromium args count:', sparticuzChromium.args?.length);
           console.log('🔍 @sparticuz/chromium args preview:', sparticuzChromium.args?.slice(0, 5));
           
-          // Prepare launch options
+          // Prepare launch options with simplified args
           const launchOptions = {
             executablePath,
             headless: true,
             args: [
-              // Use @sparticuz/chromium args as base
-              ...sparticuzChromium.args,
-              // Add our safe args
+              // Use essential @sparticuz/chromium args only
+              ...(sparticuzChromium.args || []).filter((arg: string) => 
+                arg.startsWith('--') && 
+                !arg.includes('--disable-extensions') &&
+                !arg.includes('--disable-dev-shm-usage')
+              ),
+              // Add our essential serverless args
               '--no-sandbox',
               '--disable-setuid-sandbox',
               '--disable-dev-shm-usage',
               '--disable-gpu',
               '--single-process',
-              '--no-zygote',
-              '--disable-background-timer-throttling',
-              '--disable-renderer-backgrounding',
-              '--disable-backgrounding-occluded-windows',
-              '--memory-pressure-off',
-              '--max_old_space_size=512'
+              '--no-zygote'
             ],
             timeout: 15000 // Fast timeout for serverless
           };
           
           console.log('🔧 Launch options prepared, args count:', launchOptions.args?.length);
-          console.log('🚀 Launching browser with Playwright...');
+          console.log('🔧 Launch args preview:', launchOptions.args?.slice(0, 10));
           
           // Use Playwright with @sparticuz/chromium executable
           try {
